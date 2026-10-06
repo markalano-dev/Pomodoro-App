@@ -3,7 +3,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
 import LoginScreen from '../screens/LoginScreen';
-import MainScreen from '../screens/MainScreen';
+import MainTabNavigator from '../navigation/MainTabNavigator';
 
 export default function Page() {
   const [user, setUser] = useState<User | null>(null);
@@ -26,5 +26,5 @@ export default function Page() {
     );
   }
 
-  return user ? <MainScreen /> : <LoginScreen />;
+  return user ? <MainTabNavigator /> : <LoginScreen />;
 }

@@ -1,229 +1,50 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   StyleSheet,
   Text,
   View,
   TextInput,
   TouchableOpacity,
-  Alert,
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
-  Vibration,
+  Image,
 } from 'react-native';
-import { signOut } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
-
-type TimeUnit = 'sec' | 'min' | 'hr';
+import { useTimer, TimeUnit } from '../context/TimerContext';
+import { useSettings } from '../context/SettingsContext';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function MainScreen() {
-  const [goal, setGoal] = useState('');
-  const [activeGoal, setActiveGoal] = useState('');
-
-  // Configuration Inputs
-  const [workDuration, setWorkDuration] = useState('15');
-  const [workUnit, setWorkUnit] = useState<TimeUnit>('min');
-
-  const [breakDuration, setBreakDuration] = useState('5');
-  const [breakUnit, setBreakUnit] = useState<TimeUnit>('min');
-
-  const [totalSessions, setTotalSessions] = useState('3');
-
-  // Active Timer State
-  const [currentSession, setCurrentSession] = useState(1);
-  const [phase, setPhase] = useState<'FOCUS' | 'BREAK'>('FOCUS');
-  const [secondsLeft, setSecondsLeft] = useState(15 * 60);
-  const [isRunning, setIsRunning] = useState(false);
-
-  // Convert duration and unit into total seconds
-  const convertToSeconds = (val: string, unit: TimeUnit): number => {
-    const num = parseInt(val, 10) || 0;
-    if (unit === 'sec') return num;
-    if (unit === 'hr') return num * 3600;
-    return num * 60; // min
-  };
-
-  // Handler for integer-only focus duration
-  const handleWorkDurationChange = (text: string) => {
-    const sanitized = text.replace(/[^0-9]/g, '');
-    setWorkDuration(sanitized);
-    const secs = convertToSeconds(sanitized, workUnit);
-    if (secs > 0) setSecondsLeft(secs);
-  };
-
-  // Handler for focus unit toggle
-  const handleWorkUnitChange = (unit: TimeUnit) => {
-    setWorkUnit(unit);
-    const secs = convertToSeconds(workDuration, unit);
-    if (secs > 0) setSecondsLeft(secs);
-  };
-
-  // Handler for integer-only break duration
-  const handleBreakDurationChange = (text: string) => {
-    const sanitized = text.replace(/[^0-9]/g, '');
-    setBreakDuration(sanitized);
-  };
-
-  // Handler for 3-digit max whole number session input
-  const handleSessionsChange = (text: string) => {
-    const sanitized = text.replace(/[^0-9]/g, '').slice(0, 3);
-    setTotalSessions(sanitized);
-  };
-
-  // Timer countdown and phase transition logic
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-
-    if (isRunning && secondsLeft > 0) {
-      interval = setInterval(() => {
-        setSecondsLeft((prev) => prev - 1);
-      }, 1000);
-    } else if (isRunning && secondsLeft === 0) {
-      const parsedTotalSessions = parseInt(totalSessions, 10) || 1;
-      const parsedFocusSecs = convertToSeconds(workDuration, workUnit);
-      const parsedBreakSecs = convertToSeconds(breakDuration, breakUnit);
-
-      setIsRunning(false);
-
-      if (phase === 'FOCUS') {
-        Vibration.vibrate([500, 1000, 500, 1000], true);
-        setPhase('BREAK');
-        setSecondsLeft(parsedBreakSecs);
-
-        Alert.alert(
-          'Focus Session Finished!',
-          `Great job! Ready for your ${breakDuration} ${breakUnit} break?`,
-          [
-            {
-              text: 'Start Break',
-              onPress: () => {
-                Vibration.cancel();
-                setIsRunning(true);
-              },
-            },
-          ],
-          { cancelable: false }
-        );
-      } else {
-        if (currentSession < parsedTotalSessions) {
-          const nextSession = currentSession + 1;
-          Vibration.vibrate([500, 1000, 500, 1000], true);
-
-          setCurrentSession(nextSession);
-          setPhase('FOCUS');
-          setSecondsLeft(parsedFocusSecs);
-
-          Alert.alert(
-            'Break Finished!',
-            `Ready for Session ${nextSession} of ${parsedTotalSessions}?`,
-            [
-              {
-                text: 'Start Focus',
-                onPress: () => {
-                  Vibration.cancel();
-                  setIsRunning(true);
-                },
-              },
-            ],
-            { cancelable: false }
-          );
-        } else {
-          Vibration.vibrate([500, 1000, 500, 1000], true);
-
-          Alert.alert(
-            'Task Completed! 🎉',
-            `Congratulations! You completed all ${parsedTotalSessions} session(s) for: ${
-              activeGoal || 'your goal'
-            }`,
-            [
-              {
-                text: 'Awesome!',
-                onPress: () => {
-                  Vibration.cancel();
-                },
-              },
-            ],
-            { cancelable: false }
-          );
-          resetTimer();
-        }
-      }
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [
-    isRunning,
-    secondsLeft,
-    phase,
-    currentSession,
-    totalSessions,
+  const {
+    goal,
+    setGoal,
+    activeGoal,
     workDuration,
     workUnit,
     breakDuration,
     breakUnit,
-    activeGoal,
-  ]);
+    setBreakUnit,
+    totalSessions,
+    currentSession,
+    phase,
+    secondsLeft,
+    isRunning,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    handleWorkDurationChange,
+    handleWorkUnitChange,
+    handleBreakDurationChange,
+    handleSessionsChange,
+  } = useTimer();
 
-  const startTimer = () => {
-    if (!goal.trim() && !activeGoal) {
-      Alert.alert('Goal Required', 'Please enter a goal before starting the timer.');
-      return;
-    }
+  const { username, profileImage, themeMode, activeFocusColor, activeBreakColor } = useSettings();
+  const isDark = themeMode === 'dark';
 
-    const focusSecs = convertToSeconds(workDuration, workUnit);
-    const breakSecs = convertToSeconds(breakDuration, breakUnit);
-    const sessions = parseInt(totalSessions, 10);
-
-    if (focusSecs <= 0) {
-      Alert.alert('Invalid Focus Duration', 'Please enter a valid whole number for focus duration.');
-      return;
-    }
-    if (breakSecs < 0 || isNaN(breakSecs)) {
-      Alert.alert('Invalid Break Duration', 'Please enter a valid whole number for break duration.');
-      return;
-    }
-    if (isNaN(sessions) || sessions <= 0) {
-      Alert.alert('Invalid Sessions', 'Please enter a valid number of total sessions (1-999).');
-      return;
-    }
-
-    if (!activeGoal) {
-      setActiveGoal(goal.trim());
-      setCurrentSession(1);
-      setPhase('FOCUS');
-      setSecondsLeft(focusSecs);
-    }
-
-    Vibration.cancel();
-    setIsRunning(true);
+  const handleStart = () => {
     Keyboard.dismiss();
-  };
-
-  const pauseTimer = () => {
-    Vibration.cancel();
-    setIsRunning(false);
-  };
-
-  const resetTimer = () => {
-    Vibration.cancel();
-    setIsRunning(false);
-    const focusSecs = convertToSeconds(workDuration, workUnit) || 15 * 60;
-    setSecondsLeft(focusSecs);
-    setPhase('FOCUS');
-    setCurrentSession(1);
-    setActiveGoal('');
-    setGoal('');
-  };
-
-  const handleLogout = async () => {
-    Vibration.cancel();
-    try {
-      await signOut(auth);
-    } catch (error: any) {
-      Alert.alert('Logout Error', error.message);
-    }
+    startTimer();
   };
 
   const formatTime = (totalSeconds: number) => {
@@ -238,24 +59,56 @@ export default function MainScreen() {
   };
 
   const isFocusPhase = phase === 'FOCUS';
+  const activeAccentColor = isFocusPhase ? activeFocusColor : activeBreakColor;
+  const effectiveTotalSessions = totalSessions || '4';
+
+  const displayName = username.trim() ? username : auth.currentUser?.email || 'Focus User';
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <ScrollView contentContainerStyle={styles.container}>
-        {/* Header */}
+      <ScrollView
+        contentContainerStyle={[
+          styles.container,
+          { backgroundColor: isDark ? '#121212' : '#f8f9fa' },
+        ]}
+      >
+        {/* Header with Avatar & Username / Email Fallback */}
         <View style={styles.header}>
-          <Text style={styles.userText}>{auth.currentUser?.email}</Text>
-          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-            <Text style={styles.logoutText}>Log Out</Text>
-          </TouchableOpacity>
+          <View style={styles.userProfileRow}>
+            {profileImage ? (
+              <Image source={{ uri: profileImage }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: activeFocusColor }]}>
+                <Ionicons name="person" size={18} color="#fff" />
+              </View>
+            )}
+            <View>
+              <Text style={[styles.greetingText, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
+                Welcome back, 👋
+              </Text>
+              <Text style={[styles.userText, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
+                {displayName}
+              </Text>
+            </View>
+          </View>
         </View>
 
         {/* Goal Input Section */}
-        <View style={styles.card}>
-          <Text style={styles.label}>Goal / Objective:</Text>
+        <View style={[styles.card, { backgroundColor: isDark ? '#1e1e1e' : '#ffffff' }]}>
+          <Text style={[styles.label, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
+            Goal / Objective:
+          </Text>
           <TextInput
-            style={styles.input}
+            style={[
+              styles.input,
+              {
+                backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
+                borderColor: isDark ? '#444444' : '#bdc3c7',
+                color: isDark ? '#ffffff' : '#000000',
+              },
+            ]}
             placeholder="e.g. Finish reading Chapter 3"
+            placeholderTextColor={isDark ? '#777777' : '#a0a0a0'}
             value={goal}
             onChangeText={setGoal}
             editable={!isRunning && !activeGoal}
@@ -264,27 +117,48 @@ export default function MainScreen() {
 
         {/* Session Configuration Panel */}
         {!isRunning && !activeGoal && (
-          <View style={styles.card}>
-            <Text style={styles.sectionHeader}>Session Configuration</Text>
+          <View style={[styles.card, { backgroundColor: isDark ? '#1e1e1e' : '#ffffff' }]}>
+            <Text style={[styles.sectionHeader, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
+              Session Configuration
+            </Text>
 
-            {/* Focus Duration Input & Unit Picker */}
+            {/* Focus Duration Input */}
             <View style={styles.configBlock}>
-              <Text style={styles.rowLabel}>Focus Duration:</Text>
+              <Text style={[styles.rowLabel, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
+                Focus Duration:
+              </Text>
               <View style={styles.inputUnitRow}>
                 <TextInput
-                  style={styles.numInput}
+                  style={[
+                    styles.numInput,
+                    {
+                      backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
+                      borderColor: isDark ? '#444444' : '#bdc3c7',
+                      color: isDark ? '#ffffff' : '#000000',
+                    },
+                  ]}
                   keyboardType="number-pad"
                   value={workDuration}
+                  placeholder="e.g. 25"
+                  placeholderTextColor={isDark ? '#777777' : '#a0a0a0'}
                   onChangeText={handleWorkDurationChange}
                 />
-                <View style={styles.unitToggleGroup}>
+                <View style={[styles.unitToggleGroup, { backgroundColor: isDark ? '#2c2c2c' : '#ecf0f1' }]}>
                   {(['sec', 'min', 'hr'] as TimeUnit[]).map((unit) => (
                     <TouchableOpacity
                       key={`work-${unit}`}
-                      style={[styles.unitButton, workUnit === unit && styles.unitButtonActive]}
+                      style={[
+                        styles.unitButton,
+                        workUnit === unit && { backgroundColor: activeFocusColor },
+                      ]}
                       onPress={() => handleWorkUnitChange(unit)}
                     >
-                      <Text style={[styles.unitText, workUnit === unit && styles.unitTextActive]}>
+                      <Text
+                        style={[
+                          styles.unitText,
+                          { color: workUnit === unit ? '#fff' : isDark ? '#aaa' : '#7f8c8d' },
+                        ]}
+                      >
                         {unit}
                       </Text>
                     </TouchableOpacity>
@@ -293,24 +167,43 @@ export default function MainScreen() {
               </View>
             </View>
 
-            {/* Break Duration Input & Unit Picker */}
+            {/* Break Duration Input */}
             <View style={styles.configBlock}>
-              <Text style={styles.rowLabel}>Allowed Break:</Text>
+              <Text style={[styles.rowLabel, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
+                Allowed Break:
+              </Text>
               <View style={styles.inputUnitRow}>
                 <TextInput
-                  style={styles.numInput}
+                  style={[
+                    styles.numInput,
+                    {
+                      backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
+                      borderColor: isDark ? '#444444' : '#bdc3c7',
+                      color: isDark ? '#ffffff' : '#000000',
+                    },
+                  ]}
                   keyboardType="number-pad"
                   value={breakDuration}
+                  placeholder="e.g. 5"
+                  placeholderTextColor={isDark ? '#777777' : '#a0a0a0'}
                   onChangeText={handleBreakDurationChange}
                 />
-                <View style={styles.unitToggleGroup}>
+                <View style={[styles.unitToggleGroup, { backgroundColor: isDark ? '#2c2c2c' : '#ecf0f1' }]}>
                   {(['sec', 'min', 'hr'] as TimeUnit[]).map((unit) => (
                     <TouchableOpacity
                       key={`break-${unit}`}
-                      style={[styles.unitButton, breakUnit === unit && styles.unitButtonActive]}
+                      style={[
+                        styles.unitButton,
+                        breakUnit === unit && { backgroundColor: activeBreakColor },
+                      ]}
                       onPress={() => setBreakUnit(unit)}
                     >
-                      <Text style={[styles.unitText, breakUnit === unit && styles.unitTextActive]}>
+                      <Text
+                        style={[
+                          styles.unitText,
+                          { color: breakUnit === unit ? '#fff' : isDark ? '#aaa' : '#7f8c8d' },
+                        ]}
+                      >
                         {unit}
                       </Text>
                     </TouchableOpacity>
@@ -319,14 +212,26 @@ export default function MainScreen() {
               </View>
             </View>
 
-            {/* Total Sessions Input (Max 3 digits, integers only) */}
+            {/* Total Sessions Input */}
             <View style={styles.configBlock}>
-              <Text style={styles.rowLabel}>Total Sessions (Max 999):</Text>
+              <Text style={[styles.rowLabel, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
+                Total Sessions (Max 99):
+              </Text>
               <TextInput
-                style={[styles.numInput, { width: 80 }]}
+                style={[
+                  styles.numInput,
+                  {
+                    width: 75,
+                    backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
+                    borderColor: isDark ? '#444444' : '#bdc3c7',
+                    color: isDark ? '#ffffff' : '#000000',
+                  },
+                ]}
                 keyboardType="number-pad"
-                maxLength={3}
+                maxLength={2}
                 value={totalSessions}
+                placeholder="e.g. 4"
+                placeholderTextColor={isDark ? '#777777' : '#a0a0a0'}
                 onChangeText={handleSessionsChange}
               />
             </View>
@@ -335,40 +240,62 @@ export default function MainScreen() {
 
         {/* Active Session Info Card */}
         {activeGoal ? (
-          <View style={styles.activeGoalCard}>
+          <View style={[styles.activeGoalCard, { backgroundColor: isDark ? '#2c3e50' : '#eaf2f8' }]}>
             <Text style={styles.activeGoalLabel}>CURRENT FOCUS:</Text>
-            <Text style={styles.activeGoalText}>{activeGoal}</Text>
+            <Text style={[styles.activeGoalText, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
+              {activeGoal}
+            </Text>
             <Text style={styles.sessionBadge}>
-              Session {currentSession} of {totalSessions}
+              Session {currentSession} of {effectiveTotalSessions}
             </Text>
           </View>
         ) : null}
 
         {/* Timer Display Ring */}
-        <View style={[styles.timerCircle, { borderColor: isFocusPhase ? '#e74c3c' : '#2ecc71' }]}>
-          <Text style={[styles.phaseBadge, { color: isFocusPhase ? '#e74c3c' : '#2ecc71' }]}>
+        <View
+          style={[
+            styles.timerCircle,
+            {
+              borderColor: activeAccentColor,
+              backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
+            },
+          ]}
+        >
+          <Text style={[styles.phaseBadge, { color: activeAccentColor }]}>
             {isFocusPhase ? 'FOCUS TIME' : 'BREAK TIME'}
           </Text>
-          <Text style={styles.timerText}>{formatTime(secondsLeft)}</Text>
+          <Text style={[styles.timerText, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
+            {formatTime(secondsLeft)}
+          </Text>
         </View>
 
         {/* Control Buttons */}
         <View style={styles.controlsRow}>
           {!isRunning ? (
-            <TouchableOpacity style={styles.startButton} onPress={startTimer}>
-              <Text style={styles.buttonText}>
-                {activeGoal ? (isFocusPhase ? 'Start Focus' : 'Start Break') : 'Start'}
-              </Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                style={[styles.startButton, { backgroundColor: activeBreakColor }]}
+                onPress={handleStart}
+              >
+                <Text style={styles.buttonText}>
+                  {activeGoal ? (isFocusPhase ? 'Start Focus' : 'Start Break') : 'Start'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.resetButton, { backgroundColor: isDark ? '#2c2c2c' : '#ecf0f1' }]}
+                onPress={resetTimer}
+              >
+                <Text style={[styles.resetButtonText, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
+                  Reset
+                </Text>
+              </TouchableOpacity>
+            </>
           ) : (
             <TouchableOpacity style={styles.pauseButton} onPress={pauseTimer}>
               <Text style={styles.buttonText}>Pause</Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity style={styles.resetButton} onPress={resetTimer}>
-            <Text style={styles.resetButtonText}>Reset</Text>
-          </TouchableOpacity>
         </View>
       </ScrollView>
     </TouchableWithoutFeedback>
@@ -377,32 +304,41 @@ export default function MainScreen() {
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 60,
+    paddingTop: 50,
     paddingBottom: 40,
     paddingHorizontal: 20,
-    backgroundColor: '#f8f9fa',
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  userText: {
-    fontSize: 14,
-    color: '#7f8c8d',
+  userProfileRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  avatarFallback: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 11,
     fontWeight: '600',
   },
-  logoutText: {
-    fontSize: 14,
-    color: '#e74c3c',
+  userText: {
+    fontSize: 16,
     fontWeight: 'bold',
   },
-  logoutButton: {
-    padding: 6,
-  },
   card: {
-    backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -414,20 +350,16 @@ const styles = StyleSheet.create({
   sectionHeader: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#2c3e50',
     marginBottom: 14,
   },
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#34495e',
     marginBottom: 8,
   },
   input: {
     height: 48,
-    backgroundColor: '#f8f9fa',
     borderWidth: 1,
-    borderColor: '#bdc3c7',
     borderRadius: 8,
     paddingHorizontal: 14,
     fontSize: 16,
@@ -438,7 +370,6 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#34495e',
     marginBottom: 6,
   },
   inputUnitRow: {
@@ -448,18 +379,15 @@ const styles = StyleSheet.create({
   },
   numInput: {
     height: 42,
-    width: 65,
-    backgroundColor: '#f8f9fa',
+    width: 75,
     borderWidth: 1,
-    borderColor: '#bdc3c7',
     borderRadius: 8,
     textAlign: 'center',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: 'bold',
   },
   unitToggleGroup: {
     flexDirection: 'row',
-    backgroundColor: '#ecf0f1',
     borderRadius: 8,
     padding: 3,
   },
@@ -468,19 +396,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 6,
   },
-  unitButtonActive: {
-    backgroundColor: '#34495e',
-  },
   unitText: {
     fontSize: 13,
     fontWeight: 'bold',
-    color: '#7f8c8d',
-  },
-  unitTextActive: {
-    color: '#fff',
   },
   activeGoalCard: {
-    backgroundColor: '#eaf2f8',
     padding: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -496,7 +416,6 @@ const styles = StyleSheet.create({
   activeGoalText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#2c3e50',
     textAlign: 'center',
     marginBottom: 6,
   },
@@ -509,7 +428,6 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
     borderRadius: 110,
-    backgroundColor: '#fff',
     borderWidth: 6,
     alignSelf: 'center',
     justifyContent: 'center',
@@ -529,7 +447,6 @@ const styles = StyleSheet.create({
   timerText: {
     fontSize: 44,
     fontWeight: 'bold',
-    color: '#2c3e50',
   },
   controlsRow: {
     flexDirection: 'row',
@@ -540,14 +457,13 @@ const styles = StyleSheet.create({
   startButton: {
     height: 50,
     width: 130,
-    backgroundColor: '#2ecc71',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
   pauseButton: {
     height: 50,
-    width: 130,
+    width: 140,
     backgroundColor: '#f39c12',
     borderRadius: 25,
     justifyContent: 'center',
@@ -556,18 +472,16 @@ const styles = StyleSheet.create({
   resetButton: {
     height: 50,
     width: 100,
-    backgroundColor: '#ecf0f1',
     borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
   },
   buttonText: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 16,
     fontWeight: 'bold',
   },
   resetButtonText: {
-    color: '#7f8c8d',
     fontSize: 16,
     fontWeight: '600',
   },
