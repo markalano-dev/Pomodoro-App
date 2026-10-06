@@ -48,7 +48,17 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [secondsLeft, setSecondsLeft] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
 
-  // Sync settings defaults to home state when idle
+  // Helper function to enforce unit max values
+  const clampDurationByUnit = (valStr: string, unit: TimeUnit): string => {
+    const sanitized = valStr.replace(/[^0-9]/g, '');
+    if (!sanitized) return '';
+    const num = parseInt(sanitized, 10);
+    if (unit === 'hr') return Math.min(num, 24).toString();
+    if (unit === 'min') return Math.min(num, 60).toString();
+    if (unit === 'sec') return Math.min(num, 60).toString();
+    return sanitized;
+  };
+
   useEffect(() => {
     if (!isRunning && !activeGoal) {
       setWorkDuration(defaultFocusDuration);
@@ -59,7 +69,11 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const convertToSeconds = (valStr: string, unit: TimeUnit, fallbackDefault: number): number => {
     const num = parseInt(valStr, 10);
-    const effectiveNum = isNaN(num) || num <= 0 ? fallbackDefault : num;
+    let effectiveNum = isNaN(num) || num <= 0 ? fallbackDefault : num;
+    if (unit === 'hr') effectiveNum = Math.min(effectiveNum, 24);
+    if (unit === 'min') effectiveNum = Math.min(effectiveNum, 60);
+    if (unit === 'sec') effectiveNum = Math.min(effectiveNum, 60);
+
     if (unit === 'sec') return effectiveNum;
     if (unit === 'min') return effectiveNum * 60;
     if (unit === 'hr') return effectiveNum * 3600;
@@ -74,21 +88,25 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, [workDuration, workUnit, isRunning, activeGoal]);
 
   const handleWorkDurationChange = (text: string) => {
-    const sanitized = text.replace(/[^0-9]/g, '');
-    setWorkDuration(sanitized);
+    setWorkDuration(clampDurationByUnit(text, workUnit));
   };
 
   const handleWorkUnitChange = (unit: TimeUnit) => {
     setWorkUnit(unit);
+    if (workDuration) {
+      setWorkDuration(clampDurationByUnit(workDuration, unit));
+    }
   };
 
   const handleBreakDurationChange = (text: string) => {
-    const sanitized = text.replace(/[^0-9]/g, '');
-    setBreakDuration(sanitized);
+    setBreakDuration(clampDurationByUnit(text, breakUnit));
   };
 
   const handleBreakUnitChange = (unit: TimeUnit) => {
     setBreakUnit(unit);
+    if (breakDuration) {
+      setBreakDuration(clampDurationByUnit(breakDuration, unit));
+    }
   };
 
   const handleSessionsChange = (text: string) => {
@@ -207,9 +225,9 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         handleWorkDurationChange,
         handleWorkUnitChange,
         handleBreakDurationChange,
-        handleBreakUnitChange,
+        handleBreakUnitChange: (unit) => handleBreakUnitChange(unit),
         handleSessionsChange,
-        setBreakUnit,
+        setBreakUnit: (unit) => handleBreakUnitChange(unit),
       }}
     >
       {children}

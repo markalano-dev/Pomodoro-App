@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import MainScreen from '../screens/MainScreen';
 import ArchiveScreen from '../screens/ArchiveScreen';
 import SettingsScreen from '../screens/SettingsScreen';
+import PreloaderScreen from '../screens/PreloaderScreen'; // Import Preloader
 import { TimerProvider } from '../context/TimerContext';
 import { SettingsProvider, useSettings } from '../context/SettingsContext';
 
@@ -12,9 +13,14 @@ type TabType = 'Home' | 'Archive' | 'Settings';
 
 function MainTabNavigatorContent() {
   const [activeTab, setActiveTab] = useState<TabType>('Home');
-  const { themeMode } = useSettings();
+  const { themeMode, isSettingsLoaded } = useSettings();
   const isDark = themeMode === 'dark';
   const insets = useSafeAreaInsets();
+
+  // Show PreloaderScreen until AsyncStorage settings are fully loaded
+  if (!isSettingsLoaded) {
+    return <PreloaderScreen />;
+  }
 
   const renderScreen = () => {
     switch (activeTab) {

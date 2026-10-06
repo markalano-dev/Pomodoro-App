@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../config/firebaseConfig';
-import LoginScreen from '../screens/LoginScreen';
+import AuthNavigator from '../navigation/AuthNavigator';
 import MainTabNavigator from '../navigation/MainTabNavigator';
+import { getIsSigningUp } from '../services/authService';
 
 export default function Page() {
   const [user, setUser] = useState<User | null>(null);
@@ -11,6 +12,11 @@ export default function Page() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      // Suppress state updates during account creation to prevent home screen flickering
+      if (getIsSigningUp()) {
+        setLoading(false);
+        return;
+      }
       setUser(currentUser);
       setLoading(false);
     });
@@ -26,5 +32,5 @@ export default function Page() {
     );
   }
 
-  return user ? <MainTabNavigator /> : <LoginScreen />;
+  return user ? <MainTabNavigator /> : <AuthNavigator />;
 }

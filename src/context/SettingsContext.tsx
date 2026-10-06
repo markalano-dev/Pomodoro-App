@@ -48,6 +48,9 @@ interface SettingsContextType {
   // Computed Active Accents
   activeFocusColor: string;
   activeBreakColor: string;
+
+  // Preloader State
+  isSettingsLoaded: boolean;
 }
 
 const SETTINGS_KEY = '@pomodoro_user_settings_v4';
@@ -55,9 +58,9 @@ const SETTINGS_KEY = '@pomodoro_user_settings_v4';
 const defaultSettings = {
   username: '',
   profileImage: null,
-  defaultFocusDuration: '', // Empty for placeholder
-  defaultBreakDuration: '', // Empty for placeholder
-  defaultSessions: '',      // Empty for placeholder
+  defaultFocusDuration: '',
+  defaultBreakDuration: '',
+  defaultSessions: '',
   autoStartBreaks: false,
   autoStartFocus: false,
   ringtoneEnabled: false,
@@ -74,6 +77,7 @@ const defaultSettings = {
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isSettingsLoaded, setIsSettingsLoaded] = useState(false);
   const [username, setUsername] = useState(defaultSettings.username);
   const [profileImage, setProfileImage] = useState<string | null>(defaultSettings.profileImage);
   const [defaultFocusDuration, setDefaultFocusDuration] = useState(defaultSettings.defaultFocusDuration);
@@ -97,6 +101,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const loadSettings = async () => {
+    // Guarantees preloader stays on screen for at least 1.2s for a smooth transition
+    const minPreloaderDelay = new Promise((resolve) => setTimeout(resolve, 1200));
+
     try {
       const stored = await AsyncStorage.getItem(SETTINGS_KEY);
       if (stored) {
@@ -120,6 +127,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
     } catch (e) {
       console.error('Failed to load settings:', e);
+    } finally {
+      await minPreloaderDelay;
+      setIsSettingsLoaded(true);
     }
   };
 
@@ -239,6 +249,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   return (
     <SettingsContext.Provider
       value={{
+        isSettingsLoaded,
         username,
         profileImage,
         updateUserProfile,
