@@ -32,9 +32,6 @@
       "permissions": [
         "VIBRATE"
       ]
-    },
-    "web": {
-      "favicon": "./assets/favicon.png"
     }
   }
 }
