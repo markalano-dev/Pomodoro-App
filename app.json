@@ -2,6 +2,7 @@
   "expo": {
     "name": "Pomocus",
     "slug": "pomocus",
+    "scheme": "pomocus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -34,11 +35,6 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "extra": {
-      "eas": {
-        "projectId": "092d8529-c0c1-4ccd-bbcf-51e6f3bd14fa"
-      }
     }
   }
 }
