@@ -1,769 +1,901 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   Text,
   View,
   FlatList,
+  Image,
   TouchableOpacity,
-  Alert,
-  RefreshControl,
   Modal,
   TextInput,
-  ScrollView,
-  Keyboard,
   TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
-import {
-  getLogs,
-  deleteLog,
-  clearAllLogs,
-  updateLog,
-  touchLogLastUsed,
-  LogItem,
-} from '../services/storageService';
-import { useTimer } from '../context/TimerContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTimer, CompletedSession, TimeUnit } from '../context/TimerContext';
 import { useSettings } from '../context/SettingsContext';
+import { MASCOT_HERO_ASSETS, MASCOT_SUB_ASSETS } from '../config/mascotAssets';
+import { getThemeColors } from '../config/theme';
 
 interface ArchiveScreenProps {
   onNavigateHome?: () => void;
 }
 
+interface GroupedGoalHistory {
+  goal: string;
+  completedSessionsCount: number;
+  totalSessionsCount: number;
+  remainingSessionsCount: number;
+  isCompleted: boolean;
+  lastCompletedAt: string;
+  durationsSummary: string;
+  notes: string;
+  isFavorite: boolean;
+  workDuration: string;
+  workUnit: TimeUnit;
+  breakDuration: string;
+  breakUnit: TimeUnit;
+}
+
 export default function ArchiveScreen({ onNavigateHome }: ArchiveScreenProps) {
-  const [logs, setLogs] = useState<LogItem[]>([]);
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<'ALL' | 'FAVORITES'>('ALL');
-
-  // Modal State
-  const [selectedTask, setSelectedTask] = useState<LogItem | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editDescription, setEditDescription] = useState('');
-  const [isFavorite, setIsFavorite] = useState(false);
-
-  const { themeMode } = useSettings();
-  const isDark = themeMode === 'dark';
-
+  const insets = useSafeAreaInsets();
   const {
-    setGoal,
-    handleWorkDurationChange,
-    handleWorkUnitChange,
-    handleBreakDurationChange,
-    handleBreakUnitChange,
-    handleSessionsChange,
-    isRunning,
-    activeGoal,
+    history,
+    clearHistory,
+    updateGoalNotes,
+    toggleGoalFavorite,
+    reactivateGoal,
   } = useTimer();
+  const { themeMode, activeFocusColor } = useSettings() as any;
+  const isDark = themeMode === 'dark';
+  const colors = getThemeColors(isDark);
+  const currentAccent = activeFocusColor || colors.accentFocus;
 
-  const fetchLogs = async () => {
-    const data = await getLogs();
-    setLogs(data);
-  };
+  const [selectedGoal, setSelectedGoal] = useState<GroupedGoalHistory | null>(null);
+  const [modalNotes, setModalNotes] = useState('');
+  const [showClearConfirmModal, setShowClearConfirmModal] = useState(false);
+  const [showNotesSavedModal, setShowNotesSavedModal] = useState(false);
 
-  useEffect(() => {
-    fetchLogs();
-  }, []);
-
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchLogs();
-    setRefreshing(false);
-  };
-
-  const openTaskDetails = (task: LogItem) => {
-    setSelectedTask(task);
-    setEditDescription(task.description || '');
-    setIsFavorite(task.isFavorite || false);
-    setModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-    setSelectedTask(null);
-  };
-
-  const handleToggleFavorite = () => {
-    setIsFavorite((prev) => !prev);
-  };
-
-  const handleSaveNotesOnly = async () => {
-    if (!selectedTask) return;
-
-    const updated: LogItem = {
-      ...selectedTask,
-      description: editDescription.trim(),
-      isFavorite,
-    };
-
-    await updateLog(updated);
-    await fetchLogs();
-    closeModal();
-  };
-
-  const handleReactivateTask = async () => {
-    if (!selectedTask) return;
-
-    if (isRunning || activeGoal) {
-      Alert.alert(
-        'Session In Progress',
-        'Please complete or reset your active focus session before reactivating a task.'
-      );
-      return;
-    }
-
-    const taskTitle = selectedTask.goal;
-
-    const updated: LogItem = {
-      ...selectedTask,
-      description: editDescription.trim(),
-      isFavorite,
-    };
-    await updateLog(updated);
-    await fetchLogs();
-
-    await touchLogLastUsed(selectedTask.id);
-
-    setGoal(selectedTask.goal);
-    handleWorkDurationChange(selectedTask.workDuration);
-    handleWorkUnitChange(selectedTask.workUnit);
-    if (selectedTask.breakDuration) handleBreakDurationChange(selectedTask.breakDuration);
-    if (selectedTask.breakUnit) handleBreakUnitChange(selectedTask.breakUnit);
-    handleSessionsChange(selectedTask.totalSessions.toString());
-
-    closeModal();
-
-    if (onNavigateHome) {
-      onNavigateHome();
-      setTimeout(() => {
-        Alert.alert(
-          'Task Loaded & Ready! 🚀',
-          `"${taskTitle}" values have been successfully set as your new timer configuration. Press Start whenever you are ready!`
-        );
-      }, 200);
-    } else {
-      Alert.alert(
-        'Task Reactivated 🚀',
-        `"${taskTitle}" values are ready on your Home screen!`
-      );
-    }
-  };
-
-  const handleDelete = (id: string, goalTitle: string) => {
-    Alert.alert(
-      'Delete Log Entry',
-      `Are you sure you want to delete "${goalTitle}" from your archive?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            await deleteLog(id);
-            if (selectedTask?.id === id) closeModal();
-            await fetchLogs();
-          },
-        },
-      ]
-    );
-  };
-
-  const handleClearAll = () => {
-    const nonFavoritesCount = logs.filter((l) => !l.isFavorite).length;
-    if (nonFavoritesCount === 0) {
-      Alert.alert('No Standard Logs', 'All remaining logs are saved in Favorites and cannot be cleared automatically.');
-      return;
-    }
-
-    Alert.alert(
-      'Clear Non-Favorite History',
-      'This will remove all standard archived tasks. Favorited tasks will remain saved.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Clear Standard Tasks',
-          style: 'destructive',
-          onPress: async () => {
-            await clearAllLogs();
-            closeModal();
-            await fetchLogs();
-          },
-        },
-      ]
-    );
-  };
+  const bottomPadding = Math.max(insets.bottom, 12) + 85;
 
   const formatDate = (isoString: string) => {
     const date = new Date(isoString);
-    return date.toLocaleDateString('en-US', {
+    return date.toLocaleDateString(undefined, {
       month: 'short',
       day: 'numeric',
-      year: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
     });
   };
 
-  const filteredLogs = logs.filter((log) => {
-    if (activeFilter === 'FAVORITES') return log.isFavorite;
-    return true;
-  });
+  const groupHistoryByGoal = (logs: CompletedSession[]): GroupedGoalHistory[] => {
+    const groupsMap: { [key: string]: CompletedSession[] } = {};
 
-  const hasNonFavorites = logs.some((l) => !l.isFavorite);
+    logs.forEach((item) => {
+      const goalKey = (item.goal || 'Focus Session').trim();
+      if (!groupsMap[goalKey]) {
+        groupsMap[goalKey] = [];
+      }
+      groupsMap[goalKey].push(item);
+    });
 
-  const renderLogCard = ({ item }: { item: LogItem }) => (
+    return Object.keys(groupsMap).map((goalName) => {
+      const sessionList = groupsMap[goalName];
+      
+      const validCompletedSessions = sessionList.filter(
+        (s) => s.sessionNumber > 0 && s.duration !== '0'
+      );
+      const completedCount = validCompletedSessions.length;
+
+      const maxTotalSessions = Math.max(
+        ...sessionList.map((s) => s.totalSessions || 4)
+      );
+
+      const isCompleted = completedCount >= maxTotalSessions;
+      const remainingSessionsCount = Math.max(0, maxTotalSessions - completedCount);
+
+      const sortedByDate = [...sessionList].sort(
+        (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+      );
+
+      const existingNotes = sessionList.find((s) => s.notes)?.notes || '';
+      const isFav = sessionList.some((s) => s.isFavorite);
+
+      const sampleWorkDuration = sessionList.find((s) => s.duration && s.duration !== '0')?.duration || '25';
+      const sampleWorkUnit = sessionList.find((s) => s.unit)?.unit || 'min';
+      const sampleBreakDuration = sessionList.find((s) => s.breakDuration)?.breakDuration || '5';
+      const sampleBreakUnit = sessionList.find((s) => s.breakUnit)?.breakUnit || 'min';
+
+      return {
+        goal: goalName,
+        completedSessionsCount: completedCount,
+        totalSessionsCount: maxTotalSessions,
+        remainingSessionsCount,
+        isCompleted,
+        lastCompletedAt: sortedByDate[0]?.completedAt || new Date().toISOString(),
+        durationsSummary: `${sampleWorkDuration} ${sampleWorkUnit} / block`,
+        notes: existingNotes,
+        isFavorite: isFav,
+        workDuration: sampleWorkDuration,
+        workUnit: sampleWorkUnit,
+        breakDuration: sampleBreakDuration,
+        breakUnit: sampleBreakUnit,
+      };
+    });
+  };
+
+  const groupedHistory = groupHistoryByGoal(history);
+
+  const handleOpenGoalModal = (item: GroupedGoalHistory) => {
+    setSelectedGoal(item);
+    setModalNotes(item.notes || '');
+  };
+
+  const handleSaveNotes = () => {
+    if (selectedGoal) {
+      updateGoalNotes(selectedGoal.goal, modalNotes);
+      setSelectedGoal((prev) => (prev ? { ...prev, notes: modalNotes } : null));
+      setShowNotesSavedModal(true);
+    }
+  };
+
+  const handleToggleFavorite = () => {
+    if (selectedGoal) {
+      toggleGoalFavorite(selectedGoal.goal);
+      setSelectedGoal((prev) =>
+        prev ? { ...prev, isFavorite: !prev.isFavorite } : null
+      );
+    }
+  };
+
+  const handleReactivateGoal = () => {
+    if (selectedGoal) {
+      reactivateGoal({
+        goal: selectedGoal.goal,
+        workDuration: selectedGoal.workDuration,
+        workUnit: selectedGoal.workUnit,
+        breakDuration: selectedGoal.breakDuration,
+        breakUnit: selectedGoal.breakUnit,
+        totalSessions: selectedGoal.totalSessionsCount.toString(),
+      });
+      setSelectedGoal(null);
+      if (onNavigateHome) {
+        onNavigateHome();
+      }
+    }
+  };
+
+  const handleConfirmClearHistory = () => {
+    clearHistory();
+    setShowClearConfirmModal(false);
+  };
+
+  const renderGoalCard = ({ item }: { item: GroupedGoalHistory }) => (
     <TouchableOpacity
       style={[
-        styles.card,
-        {
-          backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-          borderColor: isDark ? '#333333' : '#f0f3f6',
-        },
+        styles.sessionCard,
+        { backgroundColor: colors.card, borderColor: colors.border },
       ]}
-      onPress={() => openTaskDetails(item)}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
+      onPress={() => handleOpenGoalModal(item)}
     >
       <View style={styles.cardHeader}>
         <View style={styles.titleRow}>
-          {item.isFavorite && (
-            <Ionicons name="star" size={16} color="#f1c40f" style={{ marginRight: 4 }} />
-          )}
+          <View style={[styles.pawBadge, { backgroundColor: isDark ? '#2A2B3D' : '#F1F0EC' }]}>
+            <Image
+              source={MASCOT_SUB_ASSETS.PAW_PRINTS}
+              style={styles.pawIcon}
+              resizeMode="contain"
+            />
+          </View>
           <Text
-            style={[styles.goalTitle, { color: isDark ? '#ffffff' : '#2c3e50' }]}
-            numberOfLines={1}
+            style={[styles.goalText, { color: colors.textPrimary }]}
+            numberOfLines={2}
           >
             {item.goal}
           </Text>
+
+          {item.isFavorite && (
+            <Ionicons name="star" size={18} color="#FFD700" style={{ marginLeft: 4 }} />
+          )}
         </View>
-        <View style={[styles.badge, { backgroundColor: isDark ? '#1e3a29' : '#d4efdf' }]}>
-          <Text style={[styles.badgeText, { color: isDark ? '#2ecc71' : '#27ae60' }]}>
-            COMPLETED 🎉
+
+        <View style={styles.dateRow}>
+          <Ionicons name="calendar-outline" size={13} color={colors.textSecondary} />
+          <Text style={[styles.dateText, { color: colors.textSecondary }]}>
+            {formatDate(item.lastCompletedAt)}
           </Text>
         </View>
       </View>
 
-      <Text style={[styles.dateText, { color: isDark ? '#a0a0a0' : '#95a5a6' }]}>
-        📅 {formatDate(item.completedAt)}
-      </Text>
+      <View style={[styles.cardDivider, { backgroundColor: colors.border }]} />
 
-      {item.description ? (
-        <Text
-          style={[
-            styles.descriptionSnippet,
-            {
-              backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
-              color: isDark ? '#e0e0e0' : '#34495e',
-            },
-          ]}
-          numberOfLines={2}
-        >
-          📝 {item.description}
-        </Text>
-      ) : null}
+      <View style={styles.cardFooter}>
+        {item.isCompleted ? (
+          <View style={[styles.statusBadge, { backgroundColor: isDark ? '#1C332B' : '#E8F8F5' }]}>
+            <Ionicons name="checkmark-circle" size={15} color="#2ECC71" />
+            <Text style={[styles.statusBadgeText, { color: '#2ECC71' }]}>
+              Completed ({item.completedSessionsCount}/{item.totalSessionsCount})
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.statusBadge, { backgroundColor: isDark ? '#3D2222' : '#FDE8E8' }]}>
+            <Ionicons name="time" size={15} color={colors.danger || '#FF6B6B'} />
+            <Text style={[styles.statusBadgeText, { color: colors.danger || '#FF6B6B' }]}>
+              Not Finished ({item.remainingSessionsCount} remaining)
+            </Text>
+          </View>
+        )}
 
-      <View style={[styles.statsRow, { backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa' }]}>
-        <View style={styles.statBox}>
-          <Ionicons name="checkmark-done-circle-outline" size={15} color="#27ae60" />
-          <Text style={[styles.statDetail, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
-            {item.completedSessions} / {item.totalSessions} Sessions
+        <View style={[styles.metricBadge, { backgroundColor: colors.inputBg }]}>
+          <Ionicons name="hourglass-outline" size={13} color={colors.textSecondary} />
+          <Text style={[styles.metricBadgeText, { color: colors.textPrimary }]}>
+            {item.durationsSummary}
           </Text>
         </View>
-        <View style={styles.statBox}>
-          <Ionicons name="time-outline" size={15} color="#2980b9" />
-          <Text style={[styles.statDetail, { color: isDark ? '#e0e0e0' : '#34495e' }]}>
-            {item.workDuration} {item.workUnit}/session
-          </Text>
-        </View>
-      </View>
-
-      <View style={[styles.cardFooter, { borderTopColor: isDark ? '#2c2c2c' : '#f8f9fa' }]}>
-        <TouchableOpacity style={styles.reactivateButton} onPress={() => openTaskDetails(item)}>
-          <Ionicons name="play-circle-outline" size={16} color="#2ecc71" />
-          <Text style={styles.reactivateText}>View & Reactivate</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.deleteButton} onPress={() => handleDelete(item.id, item.goal)}>
-          <Ionicons name="trash-outline" size={15} color="#e74c3c" />
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-      {/* Top Bar */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.title, { color: isDark ? '#ffffff' : '#2c3e50' }]}>Task Archive</Text>
-          <Text style={[styles.subtitle, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
-            Reusable goal templates & history (3-day auto-clear)
-          </Text>
-        </View>
-        {hasNonFavorites && (
-          <TouchableOpacity
-            style={[styles.clearAllButton, { backgroundColor: isDark ? '#4a151b' : '#fadbd8' }]}
-            onPress={handleClearAll}
-          >
-            <Text style={[styles.clearAllText, { color: isDark ? '#ff6b6b' : '#e74c3c' }]}>
-              Clear Non-Favorites
+    <View style={[styles.root, { backgroundColor: colors.bg }]}>
+      <View style={styles.liquidHeaderContainer} pointerEvents="none">
+        <Svg height="120" width="100%" viewBox="0 0 1440 320">
+          <Path
+            fill={currentAccent}
+            fillOpacity="0.22"
+            d="M0,128L48,149.3C96,171,192,213,288,213.3C384,213,480,171,576,149.3C672,128,768,128,864,149.3C960,171,1056,213,1152,202.7C1248,192,1344,128,1392,96L1440,64L1440,0L1392,0C1344,0,1248,0,1152,0C1056,0,960,0,864,0C768,0,672,0,576,0C480,0,384,0,288,0C192,0,96,0,0,0Z"
+          />
+        </Svg>
+      </View>
+
+      <View style={styles.container}>
+        <View style={styles.headerRow}>
+          <View>
+            <Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+              LOGS & ACHIEVEMENTS
             </Text>
-          </TouchableOpacity>
+            <Text style={[styles.pageTitle, { color: colors.textPrimary }]}>
+              Focus History
+            </Text>
+          </View>
+
+          {history.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setShowClearConfirmModal(true)}
+              style={[styles.clearBtn, { backgroundColor: colors.inputBg }]}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="trash-outline" size={15} color={colors.danger || '#FF6B6B'} />
+              <Text style={[styles.clearBtnText, { color: colors.danger || '#FF6B6B' }]}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {groupedHistory.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <View style={[styles.mascotGlowCircle, { backgroundColor: isDark ? '#1D1E2A' : '#FFFFFF' }]}>
+              <Image
+                source={MASCOT_HERO_ASSETS.ARCHIVE_LOGS}
+                style={styles.emptyMascot}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
+              No Focus Logs Yet!
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: colors.textSecondary }]}>
+              Complete your first objective to start building your personal focus history.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={groupedHistory}
+            keyExtractor={(item, index) => `goal-group-${index}-${item.goal}`}
+            renderItem={renderGoalCard}
+            contentContainerStyle={[styles.listContent, { paddingBottom: bottomPadding }]}
+            showsVerticalScrollIndicator={false}
+            keyboardDismissMode="on-drag"
+            keyboardShouldPersistTaps="handled"
+            overScrollMode="never"
+            bounces={true}
+          />
         )}
       </View>
 
-      {/* Segmented Filter Bar */}
-      <View style={[styles.filterBar, { backgroundColor: isDark ? '#2c2c2c' : '#ecf0f1' }]}>
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            activeFilter === 'ALL' && [
-              styles.filterTabActive,
-              { backgroundColor: isDark ? '#3e5062' : '#34495e' },
-            ],
-          ]}
-          onPress={() => setActiveFilter('ALL')}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              { color: isDark ? '#a0a0a0' : '#7f8c8d' },
-              activeFilter === 'ALL' && styles.filterTextActive,
-            ]}
-          >
-            All Tasks ({logs.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterTab,
-            activeFilter === 'FAVORITES' && [
-              styles.filterTabActive,
-              { backgroundColor: isDark ? '#3e5062' : '#34495e' },
-            ],
-          ]}
-          onPress={() => setActiveFilter('FAVORITES')}
-        >
-          <Ionicons
-            name="star"
-            size={13}
-            color={activeFilter === 'FAVORITES' ? '#ffffff' : '#f1c40f'}
-            style={{ marginRight: 4 }}
-          />
-          <Text
-            style={[
-              styles.filterText,
-              { color: isDark ? '#a0a0a0' : '#7f8c8d' },
-              activeFilter === 'FAVORITES' && styles.filterTextActive,
-            ]}
-          >
-            Favorites ({logs.filter((l) => l.isFavorite).length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* List or Empty State */}
-      {filteredLogs.length === 0 ? (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="archive-outline" size={60} color={isDark ? '#444444' : '#bdc3c7'} />
-          <Text style={[styles.emptyTitle, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
-            {activeFilter === 'FAVORITES' ? 'No Favorite Tasks Yet' : 'No Archived Tasks'}
-          </Text>
-          <Text style={[styles.emptySubtitle, { color: isDark ? '#666666' : '#bdc3c7' }]}>
-            {activeFilter === 'FAVORITES'
-              ? 'Tap a task card and press the star icon to save it as a favorite template.'
-              : 'Complete sessions in Home to automatically store reusable task logs here. Standard logs auto-expire after 3 days.'}
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={filteredLogs}
-          keyExtractor={(item) => item.id}
-          renderItem={renderLogCard}
-          contentContainerStyle={styles.listContainer}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#e74c3c']} />
-          }
-        />
-      )}
-
-      {/* Task Details & Reactivation Modal Container */}
+      {/* ARCHIVED GOAL DETAIL POP-UP MODAL */}
       <Modal
-        visible={modalVisible}
+        visible={!!selectedGoal}
+        transparent
         animationType="slide"
-        transparent={true}
-        onRequestClose={closeModal}
+        onRequestClose={() => setSelectedGoal(null)}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <View style={styles.modalOverlay}>
-            <View style={[styles.modalContainer, { backgroundColor: isDark ? '#1e1e1e' : '#ffffff' }]}>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Modal Header */}
-                <View style={styles.modalHeader}>
-                  <Text style={[styles.modalTitle, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
-                    Task Details
-                  </Text>
+        <TouchableWithoutFeedback onPress={() => setSelectedGoal(null)}>
+          <View style={styles.modalOverlayBottom}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.modalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                
+                {/* Modal Top Header */}
+                <View style={styles.modalHeaderRow}>
+                  <View style={styles.modalHeaderTitleGroup}>
+                    <Text style={[styles.modalSubLabel, { color: colors.textSecondary }]}>
+                      ARCHIVED OBJECTIVE
+                    </Text>
+                    <Text style={[styles.modalGoalTitle, { color: colors.textPrimary }]}>
+                      {selectedGoal?.goal}
+                    </Text>
+                  </View>
+
                   <View style={styles.modalHeaderActions}>
-                    <TouchableOpacity onPress={handleToggleFavorite} style={styles.starToggle}>
+                    <TouchableOpacity
+                      style={[styles.iconCircleBtn, { backgroundColor: colors.inputBg }]}
+                      onPress={handleToggleFavorite}
+                      activeOpacity={0.8}
+                    >
                       <Ionicons
-                        name={isFavorite ? 'star' : 'star-outline'}
-                        size={24}
-                        color={isFavorite ? '#f1c40f' : '#95a5a6'}
+                        name={selectedGoal?.isFavorite ? 'star' : 'star-outline'}
+                        size={20}
+                        color={selectedGoal?.isFavorite ? '#FFD700' : colors.textSecondary}
                       />
                     </TouchableOpacity>
-                    <TouchableOpacity onPress={closeModal}>
-                      <Ionicons name="close" size={24} color={isDark ? '#aaa' : '#7f8c8d'} />
+
+                    <TouchableOpacity
+                      style={[styles.iconCircleBtn, { backgroundColor: colors.inputBg }]}
+                      onPress={() => setSelectedGoal(null)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons name="close" size={20} color={colors.textPrimary} />
                     </TouchableOpacity>
                   </View>
                 </View>
 
-                {selectedTask && (
-                  <>
-                    <View style={styles.detailBlock}>
-                      <Text style={[styles.detailLabel, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
-                        Goal Title
-                      </Text>
-                      <Text style={[styles.goalValue, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
-                        {selectedTask.goal}
+                <ScrollView
+                  showsVerticalScrollIndicator={false}
+                  keyboardDismissMode="on-drag"
+                  keyboardShouldPersistTaps="handled"
+                  overScrollMode="never"
+                  bounces={true}
+                  style={{ width: '100%' }}
+                >
+                  
+                  {/* Status & Info Badges */}
+                  <View style={styles.infoGrid}>
+                    <View style={[styles.infoGridBox, { backgroundColor: colors.inputBg }]}>
+                      <Text style={[styles.infoGridLabel, { color: colors.textSecondary }]}>STATUS</Text>
+                      <Text style={[
+                        styles.infoGridValue,
+                        { color: selectedGoal?.isCompleted ? '#2ECC71' : (colors.danger || '#FF6B6B') }
+                      ]}>
+                        {selectedGoal?.isCompleted ? 'Completed' : 'Not Finished'}
                       </Text>
                     </View>
 
-                    <View style={[styles.detailGrid, { backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa' }]}>
-                      <View style={styles.gridBox}>
-                        <Text style={[styles.gridLabel, { color: isDark ? '#a0a0a0' : '#95a5a6' }]}>
-                          Sessions
-                        </Text>
-                        <Text style={[styles.gridValue, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
-                          {selectedTask.completedSessions} of {selectedTask.totalSessions}
-                        </Text>
-                      </View>
-                      <View style={styles.gridBox}>
-                        <Text style={[styles.gridLabel, { color: isDark ? '#a0a0a0' : '#95a5a6' }]}>
-                          Focus Time
-                        </Text>
-                        <Text style={[styles.gridValue, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
-                          {selectedTask.workDuration} {selectedTask.workUnit}
-                        </Text>
-                      </View>
-                      <View style={styles.gridBox}>
-                        <Text style={[styles.gridLabel, { color: isDark ? '#a0a0a0' : '#95a5a6' }]}>
-                          Break Time
-                        </Text>
-                        <Text style={[styles.gridValue, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
-                          {selectedTask.breakDuration || '5'} {selectedTask.breakUnit || 'min'}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.detailBlock}>
-                      <Text style={[styles.detailLabel, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
-                        Description / Favorite Focus Notes (Optional):
+                    <View style={[styles.infoGridBox, { backgroundColor: colors.inputBg }]}>
+                      <Text style={[styles.infoGridLabel, { color: colors.textSecondary }]}>SESSIONS</Text>
+                      <Text style={[styles.infoGridValue, { color: colors.textPrimary }]}>
+                        {selectedGoal?.completedSessionsCount} / {selectedGoal?.totalSessionsCount} Blocks
                       </Text>
-                      <TextInput
-                        style={[
-                          styles.descriptionInput,
-                          {
-                            backgroundColor: isDark ? '#2c2c2c' : '#f8f9fa',
-                            borderColor: isDark ? '#444444' : '#bdc3c7',
-                            color: isDark ? '#ffffff' : '#2c3e50',
-                          },
-                        ]}
-                        placeholder="Add notes, key links, or instructions to save with this favorite template..."
-                        placeholderTextColor={isDark ? '#777777' : '#a0a0a0'}
-                        multiline
-                        numberOfLines={3}
-                        value={editDescription}
-                        onChangeText={setEditDescription}
-                      />
                     </View>
 
-                    <TouchableOpacity
-                      style={styles.primaryActionButton}
-                      onPress={handleReactivateTask}
-                    >
-                      <Ionicons name="play-sharp" size={18} color="#ffffff" />
-                      <Text style={styles.primaryActionText}>Save & Reactivate Task</Text>
-                    </TouchableOpacity>
+                    <View style={[styles.infoGridBox, { backgroundColor: colors.inputBg }]}>
+                      <Text style={[styles.infoGridLabel, { color: colors.textSecondary }]}>FOCUS / BREAK</Text>
+                      <Text style={[styles.infoGridValue, { color: colors.textPrimary }]}>
+                        {selectedGoal?.workDuration} {selectedGoal?.workUnit} / {selectedGoal?.breakDuration} {selectedGoal?.breakUnit}
+                      </Text>
+                    </View>
 
-                    <TouchableOpacity
+                    <View style={[styles.infoGridBox, { backgroundColor: colors.inputBg }]}>
+                      <Text style={[styles.infoGridLabel, { color: colors.textSecondary }]}>LAST ACTIVE</Text>
+                      <Text style={[styles.infoGridValue, { color: colors.textPrimary }]}>
+                        {selectedGoal ? formatDate(selectedGoal.lastCompletedAt) : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Notes & Save Notes Button */}
+                  <View style={styles.notesSection}>
+                    <Text style={[styles.notesLabel, { color: colors.textSecondary }]}>
+                      NOTES & DESCRIPTION
+                    </Text>
+                    <TextInput
                       style={[
-                        styles.secondaryActionButton,
-                        { backgroundColor: isDark ? '#2c2c2c' : '#ecf0f1' },
+                        styles.notesInput,
+                        {
+                          backgroundColor: colors.inputBg,
+                          color: colors.textPrimary,
+                          borderColor: colors.border,
+                        },
                       ]}
-                      onPress={handleSaveNotesOnly}
+                      multiline
+                      numberOfLines={4}
+                      placeholder="Add notes, reminders, or insights for this objective..."
+                      placeholderTextColor={colors.textSecondary}
+                      value={modalNotes}
+                      onChangeText={setModalNotes}
+                      textAlignVertical="top"
+                    />
+
+                    {/* Explicit Save Notes Button */}
+                    <TouchableOpacity
+                      style={[styles.saveNotesBtn, { backgroundColor: colors.inputBg, borderColor: colors.border }]}
+                      onPress={handleSaveNotes}
+                      activeOpacity={0.8}
                     >
-                      <Ionicons name="save-outline" size={16} color={isDark ? '#e0e0e0' : '#34495e'} />
-                      <Text
-                        style={[
-                          styles.secondaryActionText,
-                          { color: isDark ? '#e0e0e0' : '#34495e' },
-                        ]}
-                      >
-                        Save Notes Only
-                      </Text>
+                      <Ionicons name="checkmark-done" size={16} color={currentAccent} />
+                      <Text style={[styles.saveNotesBtnText, { color: colors.textPrimary }]}>Save Notes</Text>
                     </TouchableOpacity>
-                  </>
-                )}
-              </ScrollView>
-            </View>
+                  </View>
+
+                  {/* Reactivate / Reuse Goal Action Button */}
+                  <TouchableOpacity
+                    style={[styles.reactivateBtn, { backgroundColor: currentAccent }]}
+                    onPress={handleReactivateGoal}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="reload" size={18} color="#FFFFFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.reactivateBtnText}>Reactivate Objective</Text>
+                  </TouchableOpacity>
+
+                </ScrollView>
+              </View>
+            </TouchableWithoutFeedback>
           </View>
         </TouchableWithoutFeedback>
       </Modal>
+
+      {/* BRAND-ALIGNED NOTES SAVED POP-UP */}
+      <Modal
+        visible={showNotesSavedModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNotesSavedModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowNotesSavedModal(false)}>
+          <View style={styles.modalOverlayCenter}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.confirmContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.iconGlowBadge, { backgroundColor: isDark ? `${currentAccent}25` : `${currentAccent}15` }]}>
+                  <Ionicons name="checkmark-circle" size={42} color={currentAccent} />
+                </View>
+
+                <Text style={[styles.confirmTitle, { color: colors.textPrimary }]}>
+                  Notes Saved
+                </Text>
+                <Text style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+                  Your description for this objective has been saved.
+                </Text>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, { backgroundColor: currentAccent }]}
+                  onPress={() => setShowNotesSavedModal(false)}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.modalButtonText}>Got it!</Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* BRAND-ALIGNED CLEAR HISTORY CONFIRMATION POP-UP */}
+      <Modal
+        visible={showClearConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowClearConfirmModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowClearConfirmModal(false)}>
+          <View style={styles.modalOverlayCenter}>
+            <TouchableWithoutFeedback>
+              <View style={[styles.confirmContainer, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <View style={[styles.warningBadge, { backgroundColor: isDark ? '#3D1C1C' : '#FDE8E8' }]}>
+                  <Ionicons name="trash-bin-outline" size={36} color="#FF5252" />
+                </View>
+
+                <Text style={[styles.confirmTitle, { color: colors.textPrimary }]}>
+                  Clear Focus History?
+                </Text>
+                <Text style={[styles.confirmMessage, { color: colors.textSecondary }]}>
+                  All archived focus logs will be permanently removed, <Text style={{ fontWeight: '800', color: currentAccent }}>except for logs tagged as Favorites</Text>.
+                </Text>
+
+                <View style={styles.confirmActionRow}>
+                  <TouchableOpacity
+                    style={[styles.cancelBtn, { backgroundColor: colors.inputBg }]}
+                    onPress={() => setShowClearConfirmModal(false)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.cancelBtnText, { color: colors.textPrimary }]}>Cancel</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.proceedClearBtn, { backgroundColor: '#FF5252' }]}
+                    onPress={handleConfirmClearHistory}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={styles.proceedClearBtnText}>Proceed</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  liquidHeaderContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 0,
+  },
   container: {
     flex: 1,
+    paddingTop: 48,
     paddingHorizontal: 20,
-    paddingTop: 50,
   },
-  header: {
+  headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-end',
+    marginBottom: 22,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: 'bold',
+  headerSubtitle: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 2,
   },
-  subtitle: {
-    fontSize: 12,
-    marginTop: 2,
+  pageTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.5,
   },
-  clearAllButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 8,
-  },
-  clearAllText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  filterBar: {
+  clearBtn: {
     flexDirection: 'row',
-    borderRadius: 10,
-    padding: 3,
-    marginBottom: 14,
-  },
-  filterTab: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    gap: 6,
     paddingVertical: 8,
-    borderRadius: 8,
+    paddingHorizontal: 14,
+    borderRadius: 999,
   },
-  filterTabActive: {},
-  filterText: {
-    fontSize: 12,
-    fontWeight: 'bold',
+  clearBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
   },
-  filterTextActive: {
-    color: '#ffffff',
+  listContent: {
+    gap: 14,
   },
-  listContainer: {
-    paddingBottom: 30,
-  },
-  card: {
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    elevation: 2,
+  sessionCard: {
+    borderRadius: 26,
+    padding: 18,
+    borderWidth: 1,
+    elevation: 3,
     shadowColor: '#000',
     shadowOpacity: 0.05,
-    shadowRadius: 5,
-    borderWidth: 1,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: 10,
   },
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  pawBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pawIcon: {
+    width: 16,
+    height: 16,
+  },
+  goalText: {
+    fontSize: 16,
+    fontWeight: '800',
     flex: 1,
-    marginRight: 8,
+    lineHeight: 22,
   },
-  goalTitle: {
-    fontSize: 15,
-    fontWeight: 'bold',
-  },
-  badge: {
-    paddingVertical: 3,
-    paddingHorizontal: 7,
-    borderRadius: 6,
-  },
-  badgeText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  dateText: {
-    fontSize: 11,
-    marginBottom: 6,
-  },
-  descriptionSnippet: {
-    fontSize: 12,
-    fontStyle: 'italic',
-    padding: 8,
-    borderRadius: 6,
-    marginBottom: 8,
-  },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    padding: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  statBox: {
+  dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
+    paddingLeft: 42,
   },
-  statDetail: {
-    fontSize: 11,
+  dateText: {
+    fontSize: 12,
     fontWeight: '600',
+  },
+  cardDivider: {
+    height: 1,
+    width: '100%',
+    marginVertical: 12,
+    opacity: 0.6,
   },
   cardFooter: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    paddingTop: 6,
-    borderTopWidth: 1,
+    justifyContent: 'space-between',
+    gap: 8,
   },
-  reactivateButton: {
+  statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
   },
-  reactivateText: {
+  statusBadgeText: {
     fontSize: 12,
-    color: '#2ecc71',
-    fontWeight: 'bold',
+    fontWeight: '800',
   },
-  deleteButton: {
-    padding: 4,
+  metricBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  metricBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 30,
-    marginTop: 50,
+    paddingBottom: 60,
   },
-  emptyTitle: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    marginTop: 12,
-  },
-  emptySubtitle: {
-    fontSize: 12,
-    textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 18,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  mascotGlowCircle: {
+    width: 160,
+    height: 160,
+    borderRadius: 80,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    marginBottom: 20,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
-  modalContainer: {
-    width: '100%',
-    maxHeight: '80%',
-    borderRadius: 16,
-    padding: 20,
+  emptyMascot: {
+    width: 130,
+    height: 130,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+    maxWidth: 270,
+    lineHeight: 19,
+  },
+  modalOverlayBottom: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+  },
+  modalCard: {
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    maxHeight: '85%',
+    borderWidth: 1,
     elevation: 10,
     shadowColor: '#000',
     shadowOpacity: 0.15,
-    shadowRadius: 10,
+    shadowRadius: 20,
   },
-  modalHeader: {
+  modalHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
+    alignItems: 'flex-start',
+    marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  modalHeaderTitleGroup: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  modalSubLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  modalGoalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    lineHeight: 26,
   },
   modalHeaderActions: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
-  starToggle: {
-    padding: 2,
-  },
-  detailBlock: {
-    marginBottom: 14,
-  },
-  detailLabel: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    textTransform: 'uppercase',
-  },
-  goalValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  detailGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 14,
-  },
-  gridBox: {
-    alignItems: 'center',
-  },
-  gridLabel: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    marginBottom: 2,
-  },
-  gridValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-  descriptionInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
-    textAlignVertical: 'top',
-  },
-  primaryActionButton: {
-    flexDirection: 'row',
-    backgroundColor: '#2ecc71',
-    borderRadius: 10,
-    paddingVertical: 12,
+  iconCircleBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
+  },
+  infoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 20,
+  },
+  infoGridBox: {
+    width: '48%',
+    borderRadius: 16,
+    padding: 12,
+  },
+  infoGridLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 4,
+  },
+  infoGridValue: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  notesSection: {
+    marginBottom: 20,
+  },
+  notesLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  notesInput: {
+    borderRadius: 18,
+    padding: 14,
+    fontSize: 14,
+    fontWeight: '600',
+    minHeight: 100,
+    borderWidth: 1,
+  },
+  saveNotesBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 40,
+    borderRadius: 999,
+    marginTop: 10,
+    borderWidth: 1,
+  },
+  saveNotesBtnText: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  reactivateBtn: {
+    flexDirection: 'row',
+    height: 52,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 10,
   },
-  primaryActionText: {
-    color: '#ffffff',
-    fontSize: 15,
-    fontWeight: 'bold',
+  reactivateBtnText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
   },
-  secondaryActionButton: {
-    flexDirection: 'row',
-    borderRadius: 10,
-    paddingVertical: 10,
+
+  /* Center Confirmation Modal Styles */
+  modalOverlayCenter: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 6,
+    paddingHorizontal: 28,
   },
-  secondaryActionText: {
+  confirmContainer: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    elevation: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+  },
+  iconGlowBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  warningBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  confirmTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  confirmMessage: {
     fontSize: 13,
-    fontWeight: 'bold',
+    fontWeight: '600',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 22,
+  },
+  modalButton: {
+    width: '100%',
+    height: 48,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  confirmActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  cancelBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  proceedClearBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 999,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  proceedClearBtnText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

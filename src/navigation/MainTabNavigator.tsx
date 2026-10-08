@@ -1,33 +1,101 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View, Text, TouchableOpacity, Platform, UIManager, LayoutAnimation, Vibration } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import MainScreen from '../screens/MainScreen';
 import ArchiveScreen from '../screens/ArchiveScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import PreloaderScreen from '../screens/PreloaderScreen'; // Import Preloader
-import { TimerProvider } from '../context/TimerContext';
-import { SettingsProvider, useSettings } from '../context/SettingsContext';
+import PreloaderScreen from '../screens/PreloaderScreen';
+import { useSettings } from '../context/SettingsContext';
+import { getThemeColors } from '../config/theme';
 
-type TabType = 'Home' | 'Archive' | 'Settings';
+let Haptics: typeof import('expo-haptics') | null = null;
+try {
+  Haptics = require('expo-haptics');
+} catch {
+  // Fallback if expo-haptics isn't installed
+}
 
-function MainTabNavigatorContent() {
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental &&
+  !(globalThis as any).nativeFabricUIManager
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const SMOOTH_EASE_CONFIG = {
+  duration: 280,
+  create: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+  update: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+  },
+  delete: {
+    type: LayoutAnimation.Types.easeInEaseOut,
+    property: LayoutAnimation.Properties.opacity,
+  },
+};
+
+type TabType = 'Home' | 'Archive' | 'Favorites' | 'Settings';
+
+interface TabMeta {
+  label: string;
+  activeIcon: keyof typeof Ionicons.glyphMap;
+  inactiveIcon: keyof typeof Ionicons.glyphMap;
+}
+
+const TAB_CONFIG: Record<TabType, TabMeta> = {
+  Home: { label: 'Timer', activeIcon: 'timer', inactiveIcon: 'timer-outline' },
+  Archive: { label: 'Archive', activeIcon: 'archive', inactiveIcon: 'archive-outline' },
+  Favorites: { label: 'Favorites', activeIcon: 'heart', inactiveIcon: 'heart-outline' },
+  Settings: { label: 'Settings', activeIcon: 'settings', inactiveIcon: 'settings-outline' },
+};
+
+export default function MainTabNavigator() {
   const [activeTab, setActiveTab] = useState<TabType>('Home');
-  const { themeMode, isSettingsLoaded } = useSettings();
-  const isDark = themeMode === 'dark';
   const insets = useSafeAreaInsets();
+  const settingsContext = useSettings() as any;
 
-  // Show PreloaderScreen until AsyncStorage settings are fully loaded
-  if (!isSettingsLoaded) {
+  const { themeMode, activeFocusColor } = settingsContext;
+  const isLoaded = settingsContext.isLoaded ?? true;
+
+  const isDark = themeMode === 'dark';
+  const colors = getThemeColors(isDark);
+  const activeAccent = activeFocusColor || colors.accentFocus || '#FF7E67';
+  const activePillBg = isDark ? `${activeAccent}33` : `${activeAccent}18`;
+
+  const bottomMargin = Math.max(insets.bottom, 12) + 8;
+
+  if (!isLoaded) {
     return <PreloaderScreen />;
   }
+
+  const triggerHaptic = () => {
+    if (Haptics) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } else {
+      Vibration.vibrate(10);
+    }
+  };
+
+  const handleTabChange = (tab: TabType) => {
+    triggerHaptic();
+    LayoutAnimation.configureNext(SMOOTH_EASE_CONFIG);
+    setActiveTab(tab);
+  };
 
   const renderScreen = () => {
     switch (activeTab) {
       case 'Home':
         return <MainScreen />;
       case 'Archive':
-        return <ArchiveScreen onNavigateHome={() => setActiveTab('Home')} />;
+        return <ArchiveScreen onNavigateHome={() => handleTabChange('Home')} />;
+      case 'Favorites':
+        return <FavoritesScreen onNavigateHome={() => handleTabChange('Home')} />;
       case 'Settings':
         return <SettingsScreen />;
       default:
@@ -35,82 +103,55 @@ function MainTabNavigatorContent() {
     }
   };
 
-  const dynamicBottomPadding = insets.bottom > 0 ? insets.bottom : 8;
+  const tabs: TabType[] = ['Home', 'Archive', 'Favorites', 'Settings'];
 
   return (
-    <SafeAreaView
-      style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}
-      edges={['top', 'left', 'right']}
-    >
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={styles.content}>{renderScreen()}</View>
 
-      <View
-        style={[
-          styles.tabBar,
-          {
-            backgroundColor: isDark ? '#1e1e1e' : '#ffffff',
-            borderTopColor: isDark ? '#2c2c2c' : '#ecf0f1',
-            paddingBottom: dynamicBottomPadding,
-            height: 60 + dynamicBottomPadding,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setActiveTab('Home')}
-          activeOpacity={0.7}
+      <View style={[styles.floatingContainer, { bottom: bottomMargin }]} pointerEvents="box-none">
+        <View
+          style={[
+            styles.tabBarCard,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+            },
+          ]}
         >
-          <Ionicons
-            name={activeTab === 'Home' ? 'home' : 'home-outline'}
-            size={24}
-            color={activeTab === 'Home' ? '#e74c3c' : '#95a5a6'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Home' && styles.activeTabLabel]}>
-            Home
-          </Text>
-        </TouchableOpacity>
+          {tabs.map((tab) => {
+            const isFocused = activeTab === tab;
+            const meta = TAB_CONFIG[tab];
 
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setActiveTab('Archive')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={activeTab === 'Archive' ? 'archive' : 'archive-outline'}
-            size={24}
-            color={activeTab === 'Archive' ? '#e74c3c' : '#95a5a6'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Archive' && styles.activeTabLabel]}>
-            Archive
-          </Text>
-        </TouchableOpacity>
+            return (
+              <TouchableOpacity
+                key={tab}
+                accessibilityRole="button"
+                accessibilityState={isFocused ? { selected: true } : {}}
+                onPress={() => handleTabChange(tab)}
+                activeOpacity={0.75}
+                style={[
+                  styles.tabItem,
+                  isFocused && [styles.activeTabPill, { backgroundColor: activePillBg }],
+                ]}
+              >
+                <Ionicons
+                  name={isFocused ? meta.activeIcon : meta.inactiveIcon}
+                  size={20}
+                  color={isFocused ? activeAccent : colors.textSecondary}
+                />
 
-        <TouchableOpacity
-          style={styles.tabItem}
-          onPress={() => setActiveTab('Settings')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name={activeTab === 'Settings' ? 'settings' : 'settings-outline'}
-            size={24}
-            color={activeTab === 'Settings' ? '#e74c3c' : '#95a5a6'}
-          />
-          <Text style={[styles.tabLabel, activeTab === 'Settings' && styles.activeTabLabel]}>
-            Settings
-          </Text>
-        </TouchableOpacity>
+                {isFocused && (
+                  <Text style={[styles.activeTabText, { color: activeAccent }]} numberOfLines={1}>
+                    {meta.label}
+                  </Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
-    </SafeAreaView>
-  );
-}
-
-export default function MainTabNavigator() {
-  return (
-    <SettingsProvider>
-      <TimerProvider>
-        <MainTabNavigatorContent />
-      </TimerProvider>
-    </SettingsProvider>
+    </View>
   );
 }
 
@@ -121,29 +162,43 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  tabBar: {
+  floatingContainer: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  tabBarCard: {
     flexDirection: 'row',
-    borderTopWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    height: 64,
+    width: '100%',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    borderWidth: 1,
     elevation: 8,
     shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   tabItem: {
-    flex: 1,
-    justifyContent: 'center',
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 6,
+    justifyContent: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 999,
   },
-  tabLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#95a5a6',
-    marginTop: 3,
+  activeTabPill: {
+    paddingHorizontal: 18,
+    gap: 8,
   },
-  activeTabLabel: {
-    color: '#e74c3c',
-    fontWeight: 'bold',
+  activeTabText: {
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });

@@ -1,36 +1,46 @@
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '../config/firebaseConfig';
-import AuthNavigator from '../navigation/AuthNavigator';
-import MainTabNavigator from '../navigation/MainTabNavigator';
-import { getIsSigningUp } from '../services/authService';
+import React, { useState, useEffect } from 'react';
+import { View, StyleSheet } from 'react-native';
+import AppNavigator from '../navigation/AppNavigator';
+import PreloaderScreen from '../screens/PreloaderScreen';
 
-export default function Page() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function App() {
+  const [isAppReady, setIsAppReady] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // Suppress state updates during account creation to prevent home screen flickering
-      if (getIsSigningUp()) {
-        setLoading(false);
-        return;
-      }
-      setUser(currentUser);
-      setLoading(false);
-    });
+    let isMounted = true;
 
-    return () => unsubscribe();
+    const prepareApp = async () => {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      } catch (error) {
+        console.warn('Initialization error:', error);
+      } finally {
+        if (isMounted) {
+          setIsAppReady(true);
+        }
+      }
+    };
+
+    prepareApp();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#e74c3c" />
-      </View>
-    );
+  if (!isAppReady) {
+    return <PreloaderScreen />;
   }
 
-  return user ? <MainTabNavigator /> : <AuthNavigator />;
+  return (
+    <View style={styles.container}>
+      <AppNavigator />
+    </View>
+  );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

@@ -3,11 +3,11 @@ import LoginScreen from '../screens/LoginScreen';
 import SignUpScreen from '../screens/SignUpScreen';
 
 export default function AuthNavigator() {
-  const [screen, setScreen] = useState<'login' | 'signup'>('login');
+  const [isRegistering, setIsRegistering] = useState(false);
 
-  if (screen === 'signup') {
-    return <SignUpScreen onNavigateToLogin={() => setScreen('login')} />;
+  if (isRegistering) {
+    return <SignUpScreen onNavigateToLogin={() => setIsRegistering(false)} />;
   }
 
-  return <LoginScreen onNavigateToSignUp={() => setScreen('signup')} />;
+  return <LoginScreen onNavigateToRegister={() => setIsRegistering(true)} />;
 }

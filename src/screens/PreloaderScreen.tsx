@@ -1,28 +1,40 @@
 import React from 'react';
-import { StyleSheet, View, Text, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { StyleSheet, View, Text, ActivityIndicator, Image } from 'react-native';
 import { useSettings } from '../context/SettingsContext';
+import { MASCOT_HERO_ASSETS } from '../config/mascotAssets';
 
 export default function PreloaderScreen() {
   const { themeMode, activeFocusColor } = useSettings();
   const isDark = themeMode === 'dark';
 
+  const colors = {
+    bg: isDark ? '#12131C' : '#F9F8F6',
+    card: isDark ? '#1D1E2A' : '#FFFFFF',
+    textPrimary: isDark ? '#FFFFFF' : '#1D1E2A',
+    textSecondary: isDark ? '#8A8C9E' : '#7F8C8D',
+    accent: activeFocusColor || '#FFA07A',
+    border: isDark ? '#2A2B3C' : '#E8E6E1',
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#121212' : '#f8f9fa' }]}>
-      <View style={styles.brandContainer}>
-        <View style={[styles.iconCircle, { backgroundColor: activeFocusColor || '#e74c3c' }]}>
-          <Ionicons name="timer" size={48} color="#ffffff" />
-        </View>
-        <Text style={[styles.appName, { color: isDark ? '#ffffff' : '#2c3e50' }]}>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <Image
+          source={MASCOT_HERO_ASSETS.PRELOADER}
+          style={styles.mascotImage}
+          resizeMode="contain"
+        />
+        <Text style={[styles.appName, { color: colors.textPrimary }]}>
           Pomodoro Focus
         </Text>
-        <Text style={[styles.tagline, { color: isDark ? '#a0a0a0' : '#7f8c8d' }]}>
+        <Text style={[styles.tagline, { color: colors.textSecondary }]}>
           Preparing your workspace... ⚡
         </Text>
-      </View>
-
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color={activeFocusColor || '#e74c3c'} />
+        <ActivityIndicator
+          size="large"
+          color={colors.accent}
+          style={styles.loader}
+        />
       </View>
     </View>
   );
@@ -33,35 +45,40 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
   },
-  brandContainer: {
+  card: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 28,
+    paddingVertical: 36,
+    paddingHorizontal: 24,
     alignItems: 'center',
-    marginBottom: 40,
-  },
-  iconCircle: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
+    borderWidth: 1,
     elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+  },
+  mascotImage: {
+    width: 140,
+    height: 140,
+    marginBottom: 20,
   },
   appName: {
     fontSize: 24,
     fontWeight: 'bold',
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
   tagline: {
     fontSize: 13,
+    fontWeight: '600',
     marginTop: 6,
-    fontWeight: '500',
+    marginBottom: 24,
+    textAlign: 'center',
   },
-  loaderContainer: {
-    marginTop: 20,
+  loader: {
+    marginTop: 8,
   },
 });
