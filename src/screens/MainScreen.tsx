@@ -462,7 +462,7 @@ export default function MainScreen() {
                     keyboardType="number-pad"
                     maxLength={2}
                     value={inputWork}
-                    placeholder="25"
+                    placeholder="e.g. 1"
                     placeholderTextColor={colors.textSecondary}
                     onChangeText={onWorkChange}
                     editable={!isRunning && !activeGoal}
@@ -495,7 +495,7 @@ export default function MainScreen() {
                     keyboardType="number-pad"
                     maxLength={2}
                     value={inputBreak}
-                    placeholder="5"
+                    placeholder="e.g. 2"
                     placeholderTextColor={colors.textSecondary}
                     onChangeText={onBreakChange}
                     editable={!isRunning && !activeGoal}
@@ -532,7 +532,7 @@ export default function MainScreen() {
                   keyboardType="number-pad"
                   maxLength={2}
                   value={inputSessions}
-                  placeholder="4"
+                  placeholder="e.g. 3"
                   placeholderTextColor={colors.textSecondary}
                   onChangeText={onSessionsChange}
                   editable={!isRunning && !activeGoal}

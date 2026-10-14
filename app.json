@@ -15,11 +15,12 @@
           "resizeMode": "contain",
           "backgroundColor": "#12131C"
         }
-      ]
+      ],
+      "expo-router"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.alanodev.pomocus",
+      "bundleIdentifier": "com.rsene.pomocus",
       "buildNumber": "1"
     },
     "android": {
@@ -27,7 +28,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#12131C"
       },
-      "package": "com.alanodev.pomocus",
+      "package": "com.rsene.pomocus",
       "versionCode": 1,
       "permissions": [
         "VIBRATE"

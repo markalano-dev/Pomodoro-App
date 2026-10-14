@@ -58,10 +58,7 @@ const TAB_CONFIG: Record<TabType, TabMeta> = {
 export default function MainTabNavigator() {
   const [activeTab, setActiveTab] = useState<TabType>('Home');
   const insets = useSafeAreaInsets();
-  const settingsContext = useSettings() as any;
-
-  const { themeMode, activeFocusColor } = settingsContext;
-  const isLoaded = settingsContext.isLoaded ?? true;
+  const { themeMode, activeFocusColor, isLoaded } = useSettings();
 
   const isDark = themeMode === 'dark';
   const colors = getThemeColors(isDark);

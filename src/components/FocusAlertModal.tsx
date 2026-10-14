@@ -57,7 +57,7 @@ export default function FocusAlertModal({
 
               {/* Mascot Illustration */}
               <Image
-                source={MASCOT_HERO_ASSETS.PRELOADER}
+                source={MASCOT_HERO_ASSETS.ACTIVE_FOCUS}
                 style={styles.mascotImage}
                 resizeMode="contain"
               />

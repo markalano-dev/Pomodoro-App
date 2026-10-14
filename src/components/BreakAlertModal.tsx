@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
-import { MASCOT_HERO_ASSETS } from '../config/mascotAssets';
+import { MASCOT_HERO_ASSETS, MASCOT_SUB_ASSETS } from '../config/mascotAssets';
 import { getThemeColors } from '../config/theme';
 import { TimeUnit } from '../context/TimerContext';
 
@@ -57,7 +57,7 @@ export default function BreakAlertModal({
               </View>
 
               <Image
-                source={MASCOT_HERO_ASSETS.PRELOADER}
+                source={isLongBreak ? MASCOT_SUB_ASSETS.SLEEPING : MASCOT_HERO_ASSETS.SHORT_BREAK}
                 style={styles.mascotImage}
                 resizeMode="contain"
               />

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useSettings } from '../context/SettingsContext';
 import { MASCOT_SUB_ASSETS } from '../config/mascotAssets';
+import { getThemeColors } from '../config/theme';
 
 interface SessionCompleteModalProps {
   visible: boolean;
@@ -23,17 +24,19 @@ export default function SessionCompleteModal({
   onClose,
   totalSessions,
 }: SessionCompleteModalProps) {
-  const { themeMode } = useSettings();
+  const { themeMode, activeFocusColor } = useSettings();
   const isDark = themeMode === 'dark';
+  const themeColors = getThemeColors(isDark);
+  const accent = activeFocusColor || themeColors.accentFocus;
 
   const colors = {
-    modalBg: isDark ? '#1D1E2A' : '#FFFFFF',
+    modalBg: themeColors.card,
     overlayBg: 'rgba(18, 19, 28, 0.8)',
-    textPrimary: isDark ? '#FFFFFF' : '#1D1E2A',
-    textSecondary: isDark ? '#8A8C9E' : '#7F8C8D',
-    accentFocus: '#FFA07A',
-    buttonBg: isDark ? '#2A2B3D' : '#F1F0EC',
-    border: isDark ? '#2A2B3C' : '#E8E6E1',
+    textPrimary: themeColors.textPrimary,
+    textSecondary: themeColors.textSecondary,
+    accentFocus: accent,
+    buttonBg: themeColors.inputBg,
+    border: themeColors.border,
   };
 
   // Guarantee vibration stops as soon as the modal is visible

@@ -1,3 +1,12 @@
+/**
+ * @status DISCONNECTED / RESERVED FOR NEXT VERSION
+ * @file src/services/audioService.ts
+ * @description Sound and ringtone playback service using expo-av.
+ * Currently disconnected: expo-av is unmaintained and requires rebuilding native binaries which breaks
+ * Expo Go out of the box. Kept disconnected to preserve maximum Expo Go compatibility.
+ * Reserved for next version migration to `expo-audio` under React Native New Architecture.
+ */
+
 import { NativeModules, Alert } from 'react-native';
 
 export interface StockSound {

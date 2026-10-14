@@ -1,3 +1,11 @@
+/**
+ * @status DISCONNECTED / RESERVED FOR NEXT VERSION
+ * @file src/components/CustomFloatingTabBar.tsx
+ * @description Standalone floating bottom tab bar component built for `@react-navigation/bottom-tabs`.
+ * Currently disconnected: MainTabNavigator uses custom internal tab switching for lightweight state rendering.
+ * Reserved for future version migration when transitioning to a full native tab navigator stack.
+ */
+
 import React from 'react';
 import {
   StyleSheet,

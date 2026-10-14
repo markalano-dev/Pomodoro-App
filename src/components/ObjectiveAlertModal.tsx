@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettings } from '../context/SettingsContext';
-import { MASCOT_HERO_ASSETS } from '../config/mascotAssets';
+import { MASCOT_SUB_ASSETS } from '../config/mascotAssets';
 import { getThemeColors } from '../config/theme';
 
 interface ObjectiveAlertModalProps {
@@ -46,7 +46,7 @@ export default function ObjectiveAlertModal({ visible, onClose }: ObjectiveAlert
 
               {/* Mascot Illustration */}
               <Image
-                source={MASCOT_HERO_ASSETS.PRELOADER}
+                source={MASCOT_SUB_ASSETS.IDEA}
                 style={styles.mascotImage}
                 resizeMode="contain"
               />

@@ -25,7 +25,7 @@ export default function PreloaderScreen() {
           resizeMode="contain"
         />
         <Text style={[styles.appName, { color: colors.textPrimary }]}>
-          Pomodoro Focus
+          Pomocus
         </Text>
         <Text style={[styles.tagline, { color: colors.textSecondary }]}>
           Preparing your workspace... ⚡

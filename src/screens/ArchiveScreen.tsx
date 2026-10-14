@@ -136,7 +136,7 @@ export default function ArchiveScreen({ onNavigateHome }: ArchiveScreenProps) {
   const handleSaveNotes = () => {
     if (selectedGoal) {
       updateGoalNotes(selectedGoal.goal, modalNotes);
-      setSelectedGoal((prev) => (prev ? { ...prev, notes: modalNotes } : null));
+      setSelectedGoal((prev: GroupedGoalHistory | null) => (prev ? { ...prev, notes: modalNotes } : null));
       setShowNotesSavedModal(true);
     }
   };
@@ -144,7 +144,7 @@ export default function ArchiveScreen({ onNavigateHome }: ArchiveScreenProps) {
   const handleToggleFavorite = () => {
     if (selectedGoal) {
       toggleGoalFavorite(selectedGoal.goal);
-      setSelectedGoal((prev) =>
+      setSelectedGoal((prev: GroupedGoalHistory | null) =>
         prev ? { ...prev, isFavorite: !prev.isFavorite } : null
       );
     }
@@ -291,9 +291,9 @@ export default function ArchiveScreen({ onNavigateHome }: ArchiveScreenProps) {
             </Text>
           </View>
         ) : (
-          <FlatList
+          <FlatList<GroupedGoalHistory>
             data={groupedHistory}
-            keyExtractor={(item, index) => `goal-group-${index}-${item.goal}`}
+            keyExtractor={(item: GroupedGoalHistory, index: number) => `goal-group-${index}-${item.goal}`}
             renderItem={renderGoalCard}
             contentContainerStyle={[styles.listContent, { paddingBottom: bottomPadding }]}
             showsVerticalScrollIndicator={false}

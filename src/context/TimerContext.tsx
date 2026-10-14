@@ -52,7 +52,7 @@ interface TimerContextType {
     breakUnit: TimeUnit;
     totalSessions: string;
   }) => void;
-  logIncompleteGoal: (goalName: string, totalSessionsCount: number) => void;
+  logIncompleteGoal: (goalName: string, totalSessionsCount: number) => Promise<void>;
 }
 
 const TimerContext = createContext<TimerContextType | undefined>(undefined);
@@ -148,20 +148,21 @@ export const TimerProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     if (isRunning) {
       interval = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            handlePhaseCompletion();
-            return 0;
-          }
-          return prev - 1;
-        });
+        setSecondsLeft((prev) => (prev > 0 ? prev - 1 : 0));
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [isRunning, phase, currentSession, workDuration, workUnit, breakDuration, breakUnit, totalSessions, activeGoal, goal]);
+  }, [isRunning]);
+
+  // Handle phase completion when countdown hits 0 while running
+  useEffect(() => {
+    if (isRunning && secondsLeft === 0) {
+      handlePhaseCompletion();
+    }
+  }, [isRunning, secondsLeft]);
 
   const handlePhaseCompletion = async () => {
     setIsRunning(false);

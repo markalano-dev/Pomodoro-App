@@ -134,7 +134,7 @@ export default function LoginScreen({ onNavigateToRegister }: LoginScreenProps) 
             />
             <TouchableOpacity
               style={styles.eyeButton}
-              onPress={() => setShowPassword((prev) => !prev)}
+              onPress={() => setShowPassword((prev: boolean) => !prev)}
               activeOpacity={0.7}
             >
               <Ionicons

@@ -9,7 +9,7 @@ interface MascotViewProps {
 }
 
 export default function MascotView({ size = 110, overrideAsset }: MascotViewProps) {
-  const { phase, isRunning, activeGoal, secondsLeft } = useTimer();
+  const { phase, isRunning, activeGoal, secondsLeft, breakDuration, breakUnit } = useTimer();
 
   const getMascotImage = (): ImageSourcePropType => {
     if (overrideAsset) return overrideAsset;
@@ -18,17 +18,22 @@ export default function MascotView({ size = 110, overrideAsset }: MascotViewProp
     if (!isRunning && !activeGoal) {
       return MASCOT_HERO_ASSETS.IDLE;
     }
-    // 2. Active Focus session
+    // 2. Paused during active session
+    if (!isRunning && activeGoal && secondsLeft > 0) {
+      return MASCOT_HERO_ASSETS.PAUSED;
+    }
+    // 3. Active Focus session
     if (isRunning && phase === 'FOCUS') {
       return MASCOT_HERO_ASSETS.ACTIVE_FOCUS;
     }
-    // 3. Break session (Long vs Short break)
+    // 4. Break session (Long vs Short break based on configured break duration)
     if (phase === 'BREAK') {
-      return (secondsLeft ?? 0) > 600
-        ? MASCOT_SUB_ASSETS.SLEEPING
-        : MASCOT_HERO_ASSETS.SHORT_BREAK;
+      const isLongBreak =
+        breakUnit === 'hr' ||
+        (breakUnit === 'min' && parseInt(breakDuration || '5', 10) > 10);
+      return isLongBreak ? MASCOT_SUB_ASSETS.SLEEPING : MASCOT_HERO_ASSETS.SHORT_BREAK;
     }
-    // 4. Completed session
+    // 5. Completed session
     if (!isRunning && activeGoal && secondsLeft === 0) {
       return MASCOT_SUB_ASSETS.STAR_EYES;
     }

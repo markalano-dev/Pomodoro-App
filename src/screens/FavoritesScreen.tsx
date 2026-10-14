@@ -138,7 +138,7 @@ export default function FavoritesScreen({ onNavigateHome }: FavoritesScreenProps
   const handleSaveNotes = () => {
     if (selectedGoal) {
       updateGoalNotes(selectedGoal.goal, modalNotes);
-      setSelectedGoal((prev) => (prev ? { ...prev, notes: modalNotes } : null));
+      setSelectedGoal((prev: GroupedGoalHistory | null) => (prev ? { ...prev, notes: modalNotes } : null));
       setShowNotesSavedModal(true);
     }
   };
@@ -273,9 +273,9 @@ export default function FavoritesScreen({ onNavigateHome }: FavoritesScreenProps
             </Text>
           </View>
         ) : (
-          <FlatList
+          <FlatList<GroupedGoalHistory>
             data={favoriteGoals}
-            keyExtractor={(item, index) => `fav-goal-${index}-${item.goal}`}
+            keyExtractor={(item: GroupedGoalHistory, index: number) => `fav-goal-${index}-${item.goal}`}
             renderItem={renderGoalCard}
             contentContainerStyle={[styles.listContent, { paddingBottom: bottomPadding }]}
             showsVerticalScrollIndicator={false}

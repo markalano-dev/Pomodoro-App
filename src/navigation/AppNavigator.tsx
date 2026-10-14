@@ -13,7 +13,7 @@ export default function AppNavigator() {
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
 
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser: User | null) => {
       const startTime = Date.now();
       setIsLoading(true);
 

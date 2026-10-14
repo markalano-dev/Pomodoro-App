@@ -1,3 +1,11 @@
+/**
+ * @status DISCONNECTED / RESERVED FOR NEXT VERSION
+ * @file src/services/storageService.ts
+ * @description Global archive log persistence helper based on LogItem interface and 3-day pruning rules.
+ * Currently disconnected: Active session persistence is handled by user-scoped TimerContext storage (@pomodoro_app_history_{uid}).
+ * Reserved for next version when adding custom multi-category archiving, tags, and cloud export.
+ */
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type TimeUnit = 'sec' | 'min' | 'hr';

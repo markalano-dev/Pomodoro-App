@@ -1,3 +1,11 @@
+/**
+ * @status DISCONNECTED / RESERVED FOR NEXT VERSION
+ * @file src/services/dndService.ts
+ * @description Do Not Disturb (DND) / Notification Policy access permission handler.
+ * Currently disconnected: Device access requests are deferred until user onboarding or settings toggle is wired.
+ * Reserved for next version deep focus session auto-silencing integration.
+ */
+
 import { Platform, Alert, Linking } from 'react-native';
 import * as IntentLauncher from 'expo-intent-launcher';
 

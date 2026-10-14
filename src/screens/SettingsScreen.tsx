@@ -66,7 +66,7 @@ export default function SettingsScreen() {
   const currentAccent = draftFocusColor || colors.accentFocus || '#FF7E67';
 
   const bottomPadding = Math.max(insets.bottom, 12) + 85;
-  const userEmail = auth?.currentUser?.email || 'mark@sample.com';
+  const userEmail = auth?.currentUser?.email || 'Guest User';
 
   const handlePickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -230,7 +230,7 @@ export default function SettingsScreen() {
             </View>
             <Switch
               value={isDark}
-              onValueChange={(val) => setDraftThemeMode(val ? 'dark' : 'light')}
+              onValueChange={(val: boolean) => setDraftThemeMode(val ? 'dark' : 'light')}
               trackColor={{ false: '#E8E6E1', true: currentAccent }}
               thumbColor="#FFFFFF"
             />

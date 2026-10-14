@@ -175,7 +175,7 @@ export default function SignUpScreen({ onNavigateToLogin }: SignUpScreenProps) {
             />
             <TouchableOpacity
               style={styles.eyeButton}
-              onPress={() => setShowPassword((prev) => !prev)}
+              onPress={() => setShowPassword((prev: boolean) => !prev)}
               activeOpacity={0.7}
             >
               <Ionicons
@@ -204,7 +204,7 @@ export default function SignUpScreen({ onNavigateToLogin }: SignUpScreenProps) {
             />
             <TouchableOpacity
               style={styles.eyeButton}
-              onPress={() => setShowConfirmPassword((prev) => !prev)}
+              onPress={() => setShowConfirmPassword((prev: boolean) => !prev)}
               activeOpacity={0.7}
             >
               <Ionicons
