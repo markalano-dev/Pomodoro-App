@@ -33,6 +33,12 @@
       "permissions": [
         "VIBRATE"
       ]
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "092d8529-c0c1-4ccd-bbcf-51e6f3bd14fa"
+      }
     }
   }
 }
